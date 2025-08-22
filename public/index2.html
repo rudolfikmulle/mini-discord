@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Міні-чат</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; }
+    .msg { margin: 5px 0; }
+    .system { color: gray; font-style: italic; }
+    .from { font-weight: bold; margin-right: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Міні-чат</h1>
+
+  <div id="login">
+    <input id="nameInput" placeholder="Введіть ім’я">
+    <button id="joinBtn">Увійти</button>
+    <div id="loginMsg" style="color:red"></div>
+  </div>
+
+  <div id="chat" style="display:none">
+    <div id="status"></div>
+    <div id="messages"></div>
+    <input id="msgInput" placeholder="Напишіть повідомлення" disabled>
+    <button id="sendBtn" disabled>Надіслати</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const nameInput = document.getElementById('nameInput');
+    const joinBtn = document.getElementById('joinBtn');
+    const loginMsg = document.getElementById('loginMsg');
+    const status = document.getElementById('status');
+    const messages = document.getElementById('messages');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const loginDiv = document.getElementById('login');
+    const chatDiv = document.getElementById('chat');
+
+    function addMessage(html, cls) {
+      const div = document.createElement('div');
+      div.className = 'msg' + (cls ? ' ' + cls : '');
+      div.innerHTML = html;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    joinBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      socket.emit('join', name, (res) => {
+        if (!res.ok) {
+          loginMsg.textContent = res.message || 'Помилка';
+          return;
+        }
+        loginMsg.textContent = '';
+        status.textContent = 'Підключено як: ' + res.displayName;
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        loginDiv.style.display = 'none';
+        chatDiv.style.display = 'block';
+      });
+    });
+
+    sendBtn.addEventListener('click', () => {
+      const text = msgInput.value.trim();
+      if (!text) return;
+      socket.emit('message', text);
+      msgInput.value = '';
+    });
+
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    });
+
+    socket.on('message', (p) => {
+      const t = new Date(p.at);
+      addMessage(
+        `<span class="from">${escapeHtml(p.from)}:</span> ${escapeHtml(p.text)} <small style="color:#888">${t.toLocaleTimeString()}</small>`
+      );
+    });
+
+    socket.on('system', (text) => {
+      addMessage(escapeHtml(text), 'system');
+    });
+
+    function escapeHtml(s){
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+socket.on('history', (arr) => {
+  arr.forEach(p => {
+    const t = new Date(p.at);
+    addMessage(
+      `<span class="from">${escapeHtml(p.from)}:</span> ${escapeHtml(p.text)} <small style="color:#888">${t.toLocaleTimeString()}</small>`
+    );
+  });
+});
+  </script>
+</body>
+</html>
